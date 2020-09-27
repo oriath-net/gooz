@@ -7,28 +7,28 @@ package gooz
 import "C"
 import "fmt"
 
-// Decompress decompresses a buffer of compressed data and returns the
-// decompressed data as a byte slice. The length of the decompressed data must
-// be provided; this is often stored alongside the compressed data, or in a
-// header.
-func Decompress(data []byte, rawsize int) ([]byte, error) {
-	i_buf := C.CBytes(data)
-	o_buf := C.malloc(C.size_t(rawsize + 64)) // decoder is sloppy
+// Decompress behaves similarly to copy(), but passes the data through the ooz
+// decompressor.
+//
+// The size of the output buffer is significant to the decompressor.
+func Decompress(in []byte, out []byte) (int, error) {
+	i_buf := C.CBytes(in)
+	o_buf := C.malloc(C.size_t(len(out) + 64)) // decoder is sloppy
 	defer C.free(i_buf)
 	defer C.free(o_buf)
 
 	r_sz := C.Kraken_Decompress(
-		i_buf, C.size_t(len(data)),
-		o_buf, C.size_t(rawsize),
+		i_buf, C.size_t(len(in)),
+		o_buf, C.size_t(len(out)),
 	)
 
 	if int(r_sz) < 0 {
-		return nil, fmt.Errorf("failed: unspecified error")
+		return 0, fmt.Errorf("unspecified error")
 	}
 
-	if int(r_sz) != rawsize {
-		return nil, fmt.Errorf("only decompressed %d bytes", int(r_sz), rawsize)
+	if int(r_sz) != len(out) {
+		return 0, fmt.Errorf("only decompressed %d/%d bytes", int(r_sz), len(out))
 	}
 
-	return C.GoBytes(o_buf, C.int(rawsize)), nil
+	return copy(out, C.GoBytes(o_buf, C.int(len(out)))), nil
 }
